@@ -9,8 +9,8 @@
 ## Скачать
 
 - [Последний релиз](https://github.com/3589009-alt/RDPDefender/releases/latest)
-- `RDP-Defender-Setup-1.3.0.exe` — установщик для Windows x64;
-- `RDP-Defender-1.3.0-win-x64.zip` — portable-версия;
+- `RDP-Defender-Setup-1.3.1.exe` — установщик для Windows x64;
+- `RDP-Defender-1.3.1-win-x64.zip` — portable-версия;
 - контрольные суммы — в `SHA256SUMS.txt` релиза.
 
 ![Экран «Защита»](docs/screenshots/blocks.png)
@@ -47,6 +47,17 @@
 - локальный канал управления, доступный только администраторам и SYSTEM;
 - самопроверка логики без изменения системы.
 
+## Подпись кода
+
+Релизные сборки подписываются через SignPath Foundation:
+
+> Free code signing provided by [SignPath.io](https://about.signpath.io/),
+> certificate by [SignPath Foundation](https://signpath.org/).
+
+Политика подписи, роли и порядок проверки — в
+[`docs/CODE_SIGNING.md`](docs/CODE_SIGNING.md). Установщик и приложение
+подписываются отдельно; приложение подписывается до сборки установщика.
+
 ## Требования
 
 - Windows 10 / 11 или Windows Server 2016+ (x64);
@@ -61,7 +72,7 @@
 
 ## Быстрый старт
 
-1. Запустите `RDP-Defender-Setup-1.3.0.exe` (Windows запросит права администратора).
+1. Запустите `RDP-Defender-Setup-1.3.1.exe` (Windows запросит права администратора).
    Установщик скопирует программу в `C:\Program Files\RDP Defender`, зарегистрирует
    и запустит службу, создаст ярлыки в меню «Пуск» и на рабочем столе.
 2. Запустите **RDP Defender** из меню «Пуск».
@@ -86,7 +97,7 @@ RdpDefender.exe --uninstall --purge
 ```
 
 Для установки нужны права администратора (манифест exe запрашивает их автоматически).
-Установщик можно запустить в тихом режиме: `RDP-Defender-Setup-1.3.0.exe /S`.
+Установщик можно запустить в тихом режиме: `RDP-Defender-Setup-1.3.1.exe /S`.
 Удаление — через «Программы и компоненты» или `uninstall.exe`; по умолчанию настройки
 и журналы в `%ProgramData%\RDP Defender` сохраняются.
 

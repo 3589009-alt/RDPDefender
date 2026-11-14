@@ -1,0 +1,7 @@
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="RdpDefender.exe">
+      <authenticode-sign description="RDP Defender" description-url="https://kmadmin.ru/" />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

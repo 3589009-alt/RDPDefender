@@ -6,3 +6,12 @@ tools/
 *.user
 *.suo
 .vs/
+
+# Local website source is deployed separately from the application repository.
+site/
+
+# Code signing secrets and private keys must never be committed.
+*.pfx
+*.p12
+*.pvk
+

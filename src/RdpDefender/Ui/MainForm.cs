@@ -55,6 +55,7 @@ public sealed partial class MainForm : Form
     private DarkScrollPanel _settingsScroll = null!;
     private TableLayoutPanel _settingsStack = null!;
     private SegmentedControl _cfgBlockingMethod = null!;
+    private Label _blockingMethodHint = null!;
     private ToggleSwitch _cfgEnabled = null!;
     private ToggleSwitch _cfgDryRun = null!;
     private ToggleSwitch _cfgBlockAll = null!;
@@ -753,12 +754,41 @@ public sealed partial class MainForm : Form
         };
 
         card.AddFullRow(_cfgBlockingMethod, 48);
+
+        _blockingMethodHint = new Label
+        {
+            AutoSize = false,
+            Dock = DockStyle.Fill,
+            ForeColor = Theme.TextMuted,
+            Font = Theme.Font(8.5f),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(0)
+        };
+        card.AddFullRow(_blockingMethodHint, 46);
+        _cfgBlockingMethod.SelectedIndexChanged += (_, _) => UpdateBlockingMethodHint();
+        UpdateBlockingMethodHint();
+
         card.AddHint(
             "При остановке службы выбранные правила удаляются, при следующем запуске — " +
             "восстанавливаются из сохранённого состояния. WinDivert использует драйвер WFP, " +
             "политики IP — локальную политику IPsec, которая создаётся и удаляется службой.", 44);
         card.FitToContent();
         return card;
+    }
+
+    private void UpdateBlockingMethodHint()
+    {
+        if (_blockingMethodHint is null) return;
+
+        _blockingMethodHint.Text = _cfgBlockingMethod.SelectedIndex switch
+        {
+            0 => "Брандмауэр Windows: правила применяются сразу, но не работают при выключенных " +
+                 "профилях брандмауэра. Уже открытые сессии могут сохраниться.",
+            2 => "Политики IP: локальная IPsec-политика применяется с задержкой (опрос до 180 минут) " +
+                 "и не рвёт уже открытые сессии. Для быстрой блокировки менее надёжна.",
+            _ => "WinDivert: драйвер WFP отбрасывает пакеты, включая уже открытые соединения. " +
+                 "Требует загружаемого подписанного драйвера; наиболее надёжный вариант."
+        };
     }
 
     private SectionCard BuildProtectionSection()

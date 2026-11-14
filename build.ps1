@@ -14,7 +14,7 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 Set-Location $root
 
-$version = '1.3.0'
+$version = '1.3.1'
 $project = Join-Path $root 'src\RdpDefender\RdpDefender.csproj'
 $dist = Join-Path $root 'dist'
 $artifacts = Join-Path $root 'artifacts'

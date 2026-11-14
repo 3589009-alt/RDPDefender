@@ -1,0 +1,128 @@
+name: Build and sign release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build-sign:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install NSIS 3.11
+        run: choco install nsis --version=3.11 --no-progress -y
+
+      - name: Build application
+        shell: pwsh
+        run: .\build.ps1 -NoZip
+
+      - name: Verify tag matches product version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = (Get-Item 'dist/portable/RdpDefender.exe').VersionInfo.ProductVersion.Split('+')[0]
+          if ("v$version" -ne '${{ github.ref_name }}') {
+            throw "Tag ${{ github.ref_name }} does not match product version $version"
+          }
+
+      - name: Upload unsigned application
+        id: upload-app
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-app-${{ github.run_id }}
+          path: dist/portable/RdpDefender.exe
+          if-no-files-found: error
+
+      - name: Sign RdpDefender.exe
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_APP_CONFIG_SLUG }}
+          github-artifact-id: ${{ steps.upload-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: signed-app
+
+      - name: Use signed application
+        shell: pwsh
+        run: Copy-Item 'signed-app/RdpDefender.exe' 'dist/portable/RdpDefender.exe' -Force
+
+      - name: Build installer from signed application
+        shell: pwsh
+        run: .\build-installer.ps1
+
+      - name: Upload unsigned installer
+        id: upload-setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-setup-${{ github.run_id }}
+          path: dist/RDP-Defender-Setup-*.exe
+          if-no-files-found: error
+
+      - name: Sign installer
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_SETUP_CONFIG_SLUG }}
+          github-artifact-id: ${{ steps.upload-setup.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: signed-setup
+
+      - name: Use signed installer
+        shell: pwsh
+        run: |
+          Get-ChildItem 'signed-setup' -Filter 'RDP-Defender-Setup-*.exe' |
+            Copy-Item -Destination 'dist' -Force
+
+      - name: Build portable ZIP and checksums
+        shell: pwsh
+        run: |
+          $version = (Get-Item 'dist/portable/RdpDefender.exe').VersionInfo.ProductVersion.Split('+')[0]
+          $zip = "dist/RDP-Defender-$version-win-x64.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path 'dist/portable/*' -DestinationPath $zip
+          Get-FileHash $zip, "dist/RDP-Defender-Setup-$version.exe", 'dist/portable/RdpDefender.exe' -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLowerInvariant())  $(Split-Path $_.Path -Leaf)" } |
+            Set-Content 'dist/SHA256SUMS.txt' -Encoding ascii
+
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw 'signtool.exe not found' }
+          Get-ChildItem 'dist' -Filter '*.exe' | ForEach-Object {
+            & $signtool.FullName verify /pa /v $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Signature verification failed: $($_.Name)" }
+          }
+
+      - name: Publish GitHub release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/RDP-Defender-Setup-*.exe
+            dist/RDP-Defender-*-win-x64.zip
+            dist/SHA256SUMS.txt

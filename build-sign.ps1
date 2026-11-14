@@ -25,35 +25,62 @@ function Find-SignTool {
         if ($candidate) { return $candidate.FullName }
     }
 
-    throw 'signtool.exe не найден. Установите Windows SDK.'
+    return $null
 }
 
 $signTool = Find-SignTool
+if (-not $signTool) {
+    Write-Host 'signtool.exe не найден — используется Set-AuthenticodeSignature.' -ForegroundColor Yellow
+}
 $portable = Join-Path $Root 'dist\portable\RdpDefender.exe'
 if (-not (Test-Path $portable)) {
     throw 'Нет dist\portable\RdpDefender.exe. Сначала выполните .\build.ps1.'
 }
 
 function Sign-File([string]$Path, [string]$Description) {
-    $signArgs = @(
-        'sign',
-        '/sha1', $Thumbprint,
-        '/fd', 'SHA256',
-        '/tr', $TimestampUrl,
-        '/td', 'SHA256',
-        '/d', $Description
-    )
-    if ($MachineStore) { $signArgs += '/sm' }
-    $signArgs += $Path
+    if ($signTool) {
+        $signArgs = @(
+            'sign',
+            '/sha1', $Thumbprint,
+            '/fd', 'SHA256',
+            '/tr', $TimestampUrl,
+            '/td', 'SHA256',
+            '/d', $Description
+        )
+        if ($MachineStore) { $signArgs += '/sm' }
+        $signArgs += $Path
 
-    & $signTool @signArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Не удалось подписать $Path (signtool exit $LASTEXITCODE)."
+        & $signTool @signArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Не удалось подписать $Path (signtool exit $LASTEXITCODE)."
+        }
+
+        & $signTool verify /pa /v $Path
+        if ($LASTEXITCODE -ne 0) {
+            throw "Проверка подписи не прошла: $Path"
+        }
+        return
     }
 
-    & $signTool verify /pa /v $Path
-    if ($LASTEXITCODE -ne 0) {
-        throw "Проверка подписи не прошла: $Path"
+    $store = if ($MachineStore) { 'Cert:\LocalMachine\My' } else { 'Cert:\CurrentUser\My' }
+    $cert = Get-Item (Join-Path $store $Thumbprint) -ErrorAction Stop
+    $signParams = @{
+        FilePath = $Path
+        Certificate = $cert
+        HashAlgorithm = 'SHA256'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TimestampUrl)) {
+        $signParams.TimestampServer = $TimestampUrl
+    }
+    $result = Set-AuthenticodeSignature @signParams
+    Write-Host "SIGN_RESULT $Path => $($result.Status) $($result.StatusMessage)" -ForegroundColor DarkGray
+    if ($result.Status -eq 'NotSigned') {
+        throw "Не удалось подписать $Path через Set-AuthenticodeSignature: $($result.StatusMessage)"
+    }
+
+    $check = Get-AuthenticodeSignature -FilePath $Path
+    if ($check.Status -ne 'Valid') {
+        throw "Проверка подписи не прошла: $Path ($($check.Status): $($check.StatusMessage))"
     }
 }
 
@@ -76,6 +103,11 @@ Compress-Archive -Path (Join-Path $Root 'dist\portable\*') -DestinationPath $zip
 Get-FileHash $setup, $zip, $portable -Algorithm SHA256 |
     ForEach-Object { "$($_.Hash.ToLowerInvariant())  $(Split-Path $_.Path -Leaf)" } |
     Set-Content (Join-Path $Root 'dist\SHA256SUMS.txt') -Encoding ascii
+
+# build-installer.ps1 creates aliases before the setup is signed, so overwrite
+# them here with the final signed artifacts.
+Copy-Item $setup (Join-Path $Root 'dist\RDP-Defender-Setup.exe') -Force
+Copy-Item $zip (Join-Path $Root 'dist\RDP-Defender-portable.zip') -Force
 
 Write-Host ''
 Write-Host 'Подписано и проверено.' -ForegroundColor Green

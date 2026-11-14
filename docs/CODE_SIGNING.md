@@ -1,56 +1,79 @@
-# Политика подписи кода
+# Подпись кода
 
-**Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).**
+Релизы RDP Defender подписываются локальным Authenticode-сертификатом
+**KMV Admin**, выпущенным корневым CA **kmadmin.ru**.
 
-Эта политика относится к релизным сборкам RDP Defender из репозитория
-[3589009-alt/RDPDefender](https://github.com/3589009-alt/RDPDefender).
+## Сертификаты
 
-## Что подписывается
+| Роль | Subject | Действует до |
+|---|---|---|
+| Корневой CA | `CN=kmadmin.ru, O=KMV Admin, C=RU` | 2036-11-14 |
+| Подпись кода | `CN=KMV Admin, O=KMV Admin, C=RU` | 2028-11-14 |
 
-- `RdpDefender.exe` — основной исполняемый файл;
-- `RDP-Defender-Setup-*.exe` — установщик.
+Отпечатки и файлы: `C:\ProgramData\KMAdmin\CodeSigning\certificates.json`.
+Закрытые ключи и резервная копия корня доступны только администраторам.
+Пароль от `kmadmin-root.pfx` — в `root-pfx-password.txt` рядом.
 
-Порядок: сначала подписывается приложение, затем из подписанного приложения
-собирается установщик и подписывается отдельно. ZIP и `SHA256SUMS.txt`
-формируются после подписи.
+Публичный корневой сертификат:
 
-## Кто и как выпускает
+- <https://kmadmin.ru/downloads/kmadmin-root.cer>
+- `C:\ProgramData\KMAdmin\CodeSigning\kmadmin-root.cer`
 
-- Автор и мейнтейнер: [3589009-alt](https://github.com/3589009-alt).
-- Проверяющий и утверждающий подпись: [3589009-alt](https://github.com/3589009-alt).
-- CI-пользователь SignPath может отправлять запросы на подпись, но не утверждать их.
-- Все участники обязаны использовать MFA в GitHub и SignPath.
+## Как сделать подпись доверенной
 
-Сборка выполняется только в GitHub Actions на `windows-latest` из тега `v*`.
-Все шаги workflow до запроса на подпись выполняются на GitHub-hosted runner.
-Артефакт сначала загружается как GitHub Actions artifact, затем отправляется в
-SignPath; готовый бинарник скачивается обратно и публикуется в релизе.
+На клиенте установить корневой сертификат в
+**LocalMachine\Trusted Root Certification Authorities**:
 
-Workflow: [`.github/workflows/sign-release.yml`](../.github/workflows/sign-release.yml).
+```powershell
+certutil -addstore -f Root .\kmadmin-root.cer
+```
+
+Без этого Windows считает подпись недоверенной. Самоподписанный корень не входит
+в доверенные CA Windows по умолчанию; SmartScreen может предупреждать даже после
+установки корня.
+
+## Установщики
+
+- **Веб-установщик** `https://kmadmin.ru/downloads/RDP-Defender-Setup-Web.exe`
+  содержит опциональную галочку **«Доверять подписи KMV Admin»**. Если её
+  включить, установщик добавляет корневой сертификат в системное хранилище.
+  По умолчанию галочка выключена.
+- **GitHub-установщик** собирается из обычного `packaging/installer.nsi` и
+  **не содержит** корневой сертификат и код его установки.
+
+Первый запуск установщика может показать неизвестного издателя: Windows проверяет
+подпись до того, как установщик успеет добавить корень. После установки корня
+приложение и последующие обновления проверяются как подписанные KMV Admin.
+
+## Подпись сборки
+
+```powershell
+.\build-sign.ps1 `
+  -Thumbprint 96887EFFAE17600C10D06B6B246078A3139F757A `
+  -MachineStore `
+  -TimestampUrl ' '
+```
+
+Скрипт подписывает `RdpDefender.exe`, пересобирает установщик из подписанного
+приложения, подписывает установщик, формирует ZIP, `SHA256SUMS.txt` и стабильные
+алиасы для сайта. Если `signtool.exe` не установлен, используется встроенный
+`Set-AuthenticodeSignature`.
 
 ## Проверка
 
 ```powershell
-signtool verify /pa /v .\RdpDefender.exe
-signtool verify /pa /v .\RDP-Defender-Setup-1.3.1.exe
+Get-AuthenticodeSignature .\RdpDefender.exe | Format-List Status,SignerCertificate
+Get-AuthenticodeSignature .\RDP-Defender-Setup-1.3.1.exe | Format-List Status,SignerCertificate
 ```
 
-В свойствах файла издатель будет указан как **SignPath Foundation**.
+Ожидается `Status = Valid`, подписант `CN=KMV Admin, O=KMV Admin, C=RU`.
 
-## Конфиденциальность
+## Ограничения
 
-SignPath получает артефакт сборки и метаданные GitHub Actions, необходимые для
-проверки происхождения и подписи. Персональные данные пользователей программы
-не передаются. Политика конфиденциальности: <https://about.signpath.io/privacy-policy>.
-
-## Сторонние компоненты
-
-WinDivert распространяется по LGPL; сведения — в
-[`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md). Сторонние компоненты
-входят в поставку по своим лицензиям и не переподписываются как код KMV Admin.
-
-## Текущий статус
-
-Заявка в SignPath Foundation готовится. До её одобрения релизы остаются
-неподписанными; после настройки workflow подпись будет обязательной для
-релизных тегов.
+- Это **не публичный** сертификат: доверие обеспечивается только установкой корня.
+- Корневой сертификат нельзя отзывать через публичные CRL/OCSP.
+- При компрометации корневого ключа нужно выпустить новый корень и новую подпись.
+- GitHub-установщик намеренно не подписывается; подпись используется только для
+  веб-установщика с kmadmin.ru.
+- SignPath Foundation заявку отклонил; GitHub-workflow подписи удалён, чтобы
+  релизы на GitHub оставались неподписанными.

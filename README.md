@@ -54,14 +54,15 @@
 
 ## Подпись кода
 
-Релизные сборки подписываются через SignPath Foundation:
+Релизы подписываются локальным сертификатом **KMV Admin**, выпущенным корневым CA
+**kmadmin.ru**. Корневой сертификат и инструкция по установке — в
+[`docs/CODE_SIGNING.md`](docs/CODE_SIGNING.md) и на
+<https://kmadmin.ru/downloads/kmadmin-root.cer>.
 
-> Free code signing provided by [SignPath.io](https://about.signpath.io/),
-> certificate by [SignPath Foundation](https://signpath.org/).
-
-Политика подписи, роли и порядок проверки — в
-[`docs/CODE_SIGNING.md`](docs/CODE_SIGNING.md). Установщик и приложение
-подписываются отдельно; приложение подписывается до сборки установщика.
+**GitHub-установщик намеренно не подписан** и не содержит корневой сертификат.
+Подписанный вариант с опциональной галочкой установки корня доступен только на
+kmadmin.ru. Порядок выпуска двух установщиков — в
+[`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## Требования
 

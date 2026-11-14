@@ -10,6 +10,7 @@
 - **Release:** https://github.com/3589009-alt/RDPDefender/releases/tag/v1.3.1
 - **Website / documentation:** https://kmadmin.ru/
 - **Maintainer:** 3589009-alt
+- **Contact email:** 3589009@gmail.com
 - **Description:** Windows-служба и GUI для защиты RDP от подбора паролей:
   мониторинг 4625/261, блокировка через WinDivert, Windows Firewall или IPsec.
 - **Issues / support:** GitHub Issues репозитория.

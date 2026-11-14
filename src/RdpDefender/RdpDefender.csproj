@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>RdpDefender</AssemblyName>
+    <RootNamespace>RdpDefender</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationIcon>..\..\assets\rdpdefender.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.3.0</Version>
+    <FileVersion>1.3.0.0</FileVersion>
+    <AssemblyVersion>1.3.0.0</AssemblyVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Company>RDP Defender</Company>
+    <Product>RDP Defender</Product>
+    <AssemblyTitle>RDP Defender</AssemblyTitle>
+    <Description>Защита RDP от подбора паролей</Description>
+    <Copyright>© 2026 RDP Defender</Copyright>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Diagnostics.EventLog" Version="8.0.0" />
+    <PackageReference Include="System.IO.Pipes.AccessControl" Version="5.0.0" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\assets\rdpdefender.ico" LogicalName="RdpDefender.Assets.AppIcon.ico" />
+    <EmbeddedResource Include="..\..\assets\windivert\WinDivert.dll" LogicalName="RdpDefender.Assets.WinDivert.dll" />
+    <EmbeddedResource Include="..\..\assets\windivert\WinDivert64.sys" LogicalName="RdpDefender.Assets.WinDivert64.sys" />
+    <EmbeddedResource Include="..\..\assets\windivert\LICENSE-WinDivert.txt" LogicalName="RdpDefender.Assets.LICENSE-WinDivert.txt" />
+    <EmbeddedResource Include="..\..\assets\windivert\README-WinDivert.txt" LogicalName="RdpDefender.Assets.README-WinDivert.txt" />
+  </ItemGroup>
+
+</Project>

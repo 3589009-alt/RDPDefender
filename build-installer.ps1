@@ -62,6 +62,13 @@ $hashes | ForEach-Object {
     "$($_.Hash.ToLowerInvariant())  $(Split-Path $_.Path -Leaf)"
 } | Set-Content (Join-Path $root 'dist\SHA256SUMS.txt') -Encoding ascii
 
+# Stable download names for the website. Versioned assets remain the source of
+# truth for the updater and SHA256SUMS.txt.
+Copy-Item $setup (Join-Path $root 'dist\RDP-Defender-Setup.exe') -Force
+if (Test-Path $zip) {
+    Copy-Item $zip (Join-Path $root 'dist\RDP-Defender-portable.zip') -Force
+}
+
 Write-Host ''
 Write-Host 'Готово.' -ForegroundColor Green
 Write-Host "  Setup: $setup ($([math]::Round((Get-Item $setup).Length / 1MB, 1)) МБ)"

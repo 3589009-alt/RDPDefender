@@ -118,11 +118,20 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Signature verification failed: $($_.Name)" }
           }
 
+      - name: Create stable download aliases
+        shell: pwsh
+        run: |
+          $version = (Get-Item 'dist/portable/RdpDefender.exe').VersionInfo.ProductVersion.Split('+')[0]
+          Copy-Item "dist/RDP-Defender-Setup-$version.exe" 'dist/RDP-Defender-Setup.exe' -Force
+          Copy-Item "dist/RDP-Defender-$version-win-x64.zip" 'dist/RDP-Defender-portable.zip' -Force
+
       - name: Publish GitHub release assets
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            dist/RDP-Defender-Setup.exe
+            dist/RDP-Defender-portable.zip
             dist/RDP-Defender-Setup-*.exe
             dist/RDP-Defender-*-win-x64.zip
             dist/SHA256SUMS.txt

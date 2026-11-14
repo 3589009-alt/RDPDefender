@@ -13,6 +13,11 @@
 - `RDP-Defender-1.3.1-win-x64.zip` — portable-версия;
 - контрольные суммы — в `SHA256SUMS.txt` релиза.
 
+Стабильные ссылки для сайта, не зависящие от номера версии:
+
+- <https://github.com/3589009-alt/RDPDefender/releases/latest/download/RDP-Defender-Setup.exe>
+- <https://github.com/3589009-alt/RDPDefender/releases/latest/download/RDP-Defender-portable.zip>
+
 ![Экран «Защита»](docs/screenshots/blocks.png)
 
 ![Последние попытки входа](docs/screenshots/attempts.png)

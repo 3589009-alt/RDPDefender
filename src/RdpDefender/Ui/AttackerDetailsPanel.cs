@@ -190,6 +190,50 @@ public sealed class AttackerDetailsPanel : Panel
         Render();
     }
 
+    public void ShowSuccess(
+        SuccessfulLogonView success,
+        IReadOnlyList<FailedAttemptView> attempts,
+        BlockedIpView? block,
+        bool protectionEnabled,
+        bool whitelisted,
+        bool blacklisted)
+    {
+        _ip = success.Ip;
+        _title.Text = $"IP {success.Ip}";
+        _subtitle.Text = "Успешное подключение · локальные данные, агрегаты и WHOIS";
+
+        var state = blacklisted ? "Чёрный список"
+            : block is not null ? "Заблокирован"
+            : whitelisted ? "Белый список"
+            : protectionEnabled ? "Защищён"
+            : "Может блокироваться";
+
+        var lines = new List<string>
+        {
+            Field("IP-адрес", success.Ip),
+            Field("Первый успешный вход", Local(success.FirstSuccessUtc)),
+            Field("Последний успешный вход", Local(success.LastSuccessUtc)),
+            Field("Количество входов", success.Count.ToString(CultureInfo.InvariantCulture)),
+            Field("Источник", Dash(success.Source)),
+            Field("Пользователь", Dash(success.UserName)),
+            Field("Рабочая станция", Dash(success.Workstation)),
+            Field("Защита от блокировки", state)
+        };
+
+        if (block is not null)
+        {
+            lines.Add("");
+            lines.Add(Field("Блокировка", block.Applied ? "Активна" : block.Simulated ? "Наблюдение" : "Ожидает"));
+            lines.Add(Field("Причина блокировки", block.Reason));
+            lines.Add(Field("Действует до", block.ExpiresAtUtc is null ? "Бессрочно" : Local(block.ExpiresAtUtc.Value)));
+        }
+
+        AppendAttemptAggregates(lines, attempts);
+        _baseInfo = string.Join(Environment.NewLine, lines);
+        _whoisInfo = "WHOIS: запрос выполняется…";
+        Render();
+    }
+
     public void SetWhoisLoading()
     {
         _whoisInfo = "WHOIS: запрос выполняется…";

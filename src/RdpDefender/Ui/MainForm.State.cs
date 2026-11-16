@@ -152,6 +152,7 @@ public sealed partial class MainForm
 
             var index = _blocksGrid.Rows.Add(
                 block.Ip,
+                CountryPlaceholder(block.Ip),
                 block.BlockedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture),
                 expires,
                 block.Attempts.ToString(CultureInfo.InvariantCulture),
@@ -182,6 +183,7 @@ public sealed partial class MainForm
         _blocksGrid.ResumeLayout();
         _btnUnblock.Enabled = _blocksGrid.SelectedRows.Count > 0;
         ShowSelectedBlockDetails();
+        EnrichVisibleCountries(_blocksGrid);
     }
 
     private void BlocksGridOnCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -197,14 +199,17 @@ public sealed partial class MainForm
                 style.ForeColor = Theme.Green;
                 style.Font = _cellBold;
                 break;
-            case 2:
+            case 1:
+                style.ForeColor = Theme.TextMuted;
+                break;
+            case 3:
                 style.ForeColor = block.Permanent ? Theme.TextMuted : Theme.Text;
                 break;
-            case 4:
+            case 5:
                 style.Font = _cellBold;
                 style.ForeColor = block.Simulated ? Theme.Warn : block.Applied ? Theme.Green : Theme.Warn;
                 break;
-            case 5:
+            case 6:
                 style.ForeColor = Theme.TextMuted;
                 break;
         }
@@ -267,6 +272,11 @@ public sealed partial class MainForm
 
         if (signature != _successSignature)
         {
+            var selectedIp = _successGrid.SelectedRows
+                .Cast<DataGridViewRow>()
+                .Select(row => (row.Tag as SuccessfulLogonView)?.Ip)
+                .FirstOrDefault(ip => !string.IsNullOrEmpty(ip));
+
             _successSignature = signature;
             _successGrid.SuspendLayout();
             _successGrid.Rows.Clear();
@@ -289,6 +299,7 @@ public sealed partial class MainForm
 
                 var index = _successGrid.Rows.Add(
                     success.Ip,
+                    CountryPlaceholder(success.Ip),
                     success.FirstSuccessUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture),
                     success.LastSuccessUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture),
                     success.Count.ToString(CultureInfo.InvariantCulture),
@@ -302,11 +313,32 @@ public sealed partial class MainForm
 
             _successGrid.ResumeLayout();
             _successGrid.ClearSelection();
-            _successGrid.CurrentCell = null;
+
+            if (!string.IsNullOrEmpty(selectedIp))
+            {
+                foreach (DataGridViewRow row in _successGrid.Rows)
+                {
+                    if (row.Tag is SuccessfulLogonView view &&
+                        string.Equals(view.Ip, selectedIp, StringComparison.OrdinalIgnoreCase))
+                    {
+                        row.Selected = true;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                _successGrid.CurrentCell = null;
+            }
+
+            if (_successGrid.SelectedRows.Count == 0)
+                CancelSuccessWhois();
         }
 
         _successInfo.Text = $"Защита успешных подключений: " +
             $"{(config.WhitelistSuccessfulLogins ? "включена" : "отключена")} · IP: {successes.Count}";
+        ShowSelectedSuccessDetails();
+        EnrichVisibleCountries(_successGrid);
     }
 
     private void RefreshAttempts(IReadOnlyList<FailedAttemptView> attempts, int totalRdp261)
@@ -326,6 +358,7 @@ public sealed partial class MainForm
             var index = _attemptsGrid.Rows.Add(
                 attempt.TimeUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss", CultureInfo.InvariantCulture),
                 attempt.Ip,
+                CountryPlaceholder(attempt.Ip),
                 string.IsNullOrWhiteSpace(attempt.UserName) ? "—" : attempt.UserName,
                 LogonTypeText(attempt.LogonType),
                 string.IsNullOrWhiteSpace(attempt.Workstation) ? "—" : attempt.Workstation,
@@ -334,7 +367,7 @@ public sealed partial class MainForm
             _attemptsGrid.Rows[index].Tag = attempt;
             if (!string.IsNullOrWhiteSpace(attempt.Status) || !string.IsNullOrWhiteSpace(attempt.SubStatus))
             {
-                _attemptsGrid.Rows[index].Cells[5].ToolTipText =
+                _attemptsGrid.Rows[index].Cells[6].ToolTipText =
                     $"Status: {attempt.Status}; SubStatus: {attempt.SubStatus}";
             }
         }
@@ -348,6 +381,7 @@ public sealed partial class MainForm
 
         CancelAttemptWhois();
         _attemptsDetails?.Clear("Выберите попытку входа в списке — здесь появятся данные IP и WHOIS.");
+        EnrichVisibleCountries(_attemptsGrid);
     }
 
     private void AttemptsGridOnCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -366,10 +400,13 @@ public sealed partial class MainForm
                 style.ForeColor = Theme.Green;
                 style.Font = _cellBold;
                 break;
-            case 3:
+            case 2:
                 style.ForeColor = Theme.TextMuted;
                 break;
-            case 5:
+            case 4:
+                style.ForeColor = Theme.TextMuted;
+                break;
+            case 6:
                 style.Font = _cellBold;
                 style.ForeColor = attempt.Outcome switch
                 {

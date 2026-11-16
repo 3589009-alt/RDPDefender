@@ -69,7 +69,7 @@ public sealed partial class MainForm
                 Id = 1,
                 TimeUtc = now.AddHours(-5),
                 Level = "INFO",
-                Message = "RDP Defender 1.3.3 запущен. Каталог данных: C:\\ProgramData\\RDP Defender"
+                Message = "RDP Defender 1.3.5 запущен. Каталог данных: C:\\ProgramData\\RDP Defender"
             },
             new()
             {
@@ -212,6 +212,11 @@ public sealed partial class MainForm
         UpdateServiceUi(ServiceControllerStatus.Running);
         _svcPath.Text = @"C:\Program Files\RDP Defender\RdpDefender.exe --service";
         _svcPath.ForeColor = Theme.TextMuted;
+        if (_successGrid.Rows.Count > 0)
+        {
+            _successGrid.CurrentCell = _successGrid.Rows[0].Cells[0];
+            _successGrid.Rows[0].Selected = true;
+        }
         SelectPage(0);
     }
 

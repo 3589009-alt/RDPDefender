@@ -117,6 +117,7 @@ internal static class Program
                 LogCrash(exception);
         };
 
+        Application.AddMessageFilter(new Ui.MouseWheelRouter());
         Application.Run(new Ui.MainForm());
         return 0;
     }

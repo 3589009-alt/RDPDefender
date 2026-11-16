@@ -35,6 +35,18 @@ public sealed class WhoisLookup
     private readonly ConcurrentDictionary<string, CacheItem> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _gate = new(2, 2);
 
+    public bool TryGetCached(string ip, out AttackerLookup? lookup)
+    {
+        lookup = null;
+        var key = (ip ?? "").Trim();
+        if (_cache.TryGetValue(key, out var cached) && cached.ExpiresUtc > DateTime.UtcNow)
+        {
+            lookup = Clone(cached.Value);
+            return true;
+        }
+        return false;
+    }
+
     public async Task<AttackerLookup> LookupAsync(string ip, CancellationToken cancellationToken = default, bool refresh = false)
     {
         var key = (ip ?? "").Trim();

@@ -52,9 +52,11 @@ public sealed partial class MainForm : Form
     private DarkGrid _journalGrid = null!;
     private AttackerDetailsPanel _blocksDetails = null!;
     private AttackerDetailsPanel _attemptsDetails = null!;
+    private AttackerDetailsPanel _successDetails = null!;
     private readonly WhoisLookup _whoisLookup = new();
     private CancellationTokenSource? _blocksWhoisCts;
     private CancellationTokenSource? _attemptsWhoisCts;
+    private CancellationTokenSource? _successWhoisCts;
     private NumberInput _attemptsLimit = null!;
     private Label _attemptsInfo = null!;
     private Label _successInfo = null!;
@@ -455,13 +457,15 @@ public sealed partial class MainForm : Form
 
         var gridHost = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Bg, Padding = new Padding(0, 10, 0, 0) };
         _blocksGrid = new DarkGrid { Dock = DockStyle.Fill };
-        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "ip", HeaderText = "IP-АДРЕС", FillWeight = 16, SortMode = DataGridViewColumnSortMode.NotSortable });
-        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "blocked", HeaderText = "ЗАБЛОКИРОВАН", FillWeight = 18, SortMode = DataGridViewColumnSortMode.NotSortable });
-        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "expires", HeaderText = "ДЕЙСТВУЕТ ДО", FillWeight = 18, SortMode = DataGridViewColumnSortMode.NotSortable });
-        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "attempts", HeaderText = "ПОПЫТОК", FillWeight = 9, SortMode = DataGridViewColumnSortMode.NotSortable });
-        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "state", HeaderText = "СОСТОЯНИЕ", FillWeight = 12, SortMode = DataGridViewColumnSortMode.NotSortable });
-        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "reason", HeaderText = "ПРИЧИНА", FillWeight = 31, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "ip", HeaderText = "IP-АДРЕС", FillWeight = 15, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "country", HeaderText = "СТРАНА", FillWeight = 8, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "blocked", HeaderText = "ЗАБЛОКИРОВАН", FillWeight = 17, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "expires", HeaderText = "ДЕЙСТВУЕТ ДО", FillWeight = 17, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "attempts", HeaderText = "ПОПЫТОК", FillWeight = 8, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "state", HeaderText = "СОСТОЯНИЕ", FillWeight = 11, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "reason", HeaderText = "ПРИЧИНА", FillWeight = 24, SortMode = DataGridViewColumnSortMode.NotSortable });
         _blocksGrid.CellFormatting += BlocksGridOnCellFormatting;
+        _blocksGrid.Scroll += (_, _) => EnrichVisibleCountries(_blocksGrid);
         _blocksGrid.SelectionChanged += (_, _) =>
         {
             _btnUnblock.Enabled = _blocksGrid.SelectedRows.Count > 0;
@@ -575,29 +579,34 @@ public sealed partial class MainForm : Form
         _attemptsGrid = new DarkGrid { Dock = DockStyle.Fill };
         _attemptsGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "ВРЕМЯ", FillWeight = 15, SortMode = DataGridViewColumnSortMode.NotSortable
+            Name = "time", HeaderText = "ВРЕМЯ", FillWeight = 14, SortMode = DataGridViewColumnSortMode.NotSortable
         });
         _attemptsGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "IP-АДРЕС", FillWeight = 16, SortMode = DataGridViewColumnSortMode.NotSortable
+            Name = "ip", HeaderText = "IP-АДРЕС", FillWeight = 15, SortMode = DataGridViewColumnSortMode.NotSortable
         });
         _attemptsGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "ПОЛЬЗОВАТЕЛЬ", FillWeight = 19, SortMode = DataGridViewColumnSortMode.NotSortable
+            Name = "country", HeaderText = "СТРАНА", FillWeight = 8, SortMode = DataGridViewColumnSortMode.NotSortable
         });
         _attemptsGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "ТИП ВХОДА", FillWeight = 11, SortMode = DataGridViewColumnSortMode.NotSortable
+            Name = "user", HeaderText = "ПОЛЬЗОВАТЕЛЬ", FillWeight = 18, SortMode = DataGridViewColumnSortMode.NotSortable
         });
         _attemptsGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "РАБОЧАЯ СТАНЦИЯ", FillWeight = 16, SortMode = DataGridViewColumnSortMode.NotSortable
+            Name = "type", HeaderText = "ТИП ВХОДА", FillWeight = 10, SortMode = DataGridViewColumnSortMode.NotSortable
         });
         _attemptsGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
-            HeaderText = "РЕЗУЛЬТАТ", FillWeight = 23, SortMode = DataGridViewColumnSortMode.NotSortable
+            Name = "station", HeaderText = "РАБОЧАЯ СТАНЦИЯ", FillWeight = 15, SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+        _attemptsGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "outcome", HeaderText = "РЕЗУЛЬТАТ", FillWeight = 20, SortMode = DataGridViewColumnSortMode.NotSortable
         });
         _attemptsGrid.CellFormatting += AttemptsGridOnCellFormatting;
+        _attemptsGrid.Scroll += (_, _) => EnrichVisibleCountries(_attemptsGrid);
         _attemptsGrid.SelectionChanged += (_, _) => ShowSelectedAttemptDetails();
         _attemptsGrid.EmptyText = "Неудачных попыток входа пока нет";
 
@@ -621,12 +630,13 @@ public sealed partial class MainForm : Form
             Dock = DockStyle.Fill,
             BackColor = Theme.Bg,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = 3,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 232));
 
         var toolbar = new TableLayoutPanel
         {
@@ -692,20 +702,28 @@ public sealed partial class MainForm : Form
         };
 
         _successGrid = new DarkGrid { Dock = DockStyle.Fill };
-        AddSuccessColumn("ip", "IP-АДРЕС", 18);
-        AddSuccessColumn("first", "ПЕРВЫЙ ВХОД", 17);
-        AddSuccessColumn("last", "ПОСЛЕДНИЙ ВХОД", 17);
-        AddSuccessColumn("count", "ВХОДОВ", 8);
-        AddSuccessColumn("source", "ИСТОЧНИК", 12);
-        AddSuccessColumn("user", "ПОЛЬЗОВАТЕЛЬ", 14);
-        AddSuccessColumn("station", "РАБОЧАЯ СТАНЦИЯ", 14);
-        AddSuccessColumn("state", "ЗАЩИТА", 20);
+        AddSuccessColumn("ip", "IP-АДРЕС", 16);
+        AddSuccessColumn("country", "СТРАНА", 8);
+        AddSuccessColumn("first", "ПЕРВЫЙ ВХОД", 16);
+        AddSuccessColumn("last", "ПОСЛЕДНИЙ ВХОД", 16);
+        AddSuccessColumn("count", "ВХОДОВ", 7);
+        AddSuccessColumn("source", "ИСТОЧНИК", 11);
+        AddSuccessColumn("user", "ПОЛЬЗОВАТЕЛЬ", 13);
+        AddSuccessColumn("station", "РАБОЧАЯ СТАНЦИЯ", 13);
+        AddSuccessColumn("state", "ЗАЩИТА", 18);
         _successGrid.CellFormatting += SuccessGridOnCellFormatting;
+        _successGrid.Scroll += (_, _) => EnrichVisibleCountries(_successGrid);
+        _successGrid.SelectionChanged += (_, _) => ShowSelectedSuccessDetails();
         _successGrid.EmptyText = "Успешных RDP-подключений пока нет";
 
         gridHost.Controls.Add(_successGrid);
+
+        _successDetails = new AttackerDetailsPanel { Dock = DockStyle.Fill };
+        _successDetails.RefreshRequested += (_, _) => _ = LoadSuccessWhoisAsync(_successDetails.Ip, refresh: true);
+
         layout.Controls.Add(toolbar, 0, 0);
         layout.Controls.Add(gridHost, 0, 1);
+        layout.Controls.Add(_successDetails, 0, 2);
         page.Controls.Add(layout);
         return page;
     }
@@ -734,12 +752,15 @@ public sealed partial class MainForm : Form
                 style.ForeColor = Theme.Green;
                 style.Font = _cellBold;
                 break;
-            case 3:
+            case 1:
+                style.ForeColor = Theme.TextMuted;
+                break;
+            case 4:
                 style.Font = _cellBold;
                 break;
-            case 7:
+            case 8:
                 style.Font = _cellBold;
-                var state = _successGrid.Rows[e.RowIndex].Cells[7].Value?.ToString() ?? "";
+                var state = _successGrid.Rows[e.RowIndex].Cells[8].Value?.ToString() ?? "";
                 style.ForeColor = state switch
                 {
                     "Защищён" or "Белый список" => Theme.Green,

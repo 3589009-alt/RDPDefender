@@ -1,3 +1,4 @@
+using RdpDefender.Configuration;
 using RdpDefender.Core;
 
 namespace RdpDefender.Ui;
@@ -51,6 +52,46 @@ public sealed partial class MainForm
         _ = LoadAttemptWhoisAsync(attempt.Ip, refresh: false);
     }
 
+    private void ShowSelectedSuccessDetails()
+    {
+        if (_successDetails is null) return;
+
+        var success = _successGrid.SelectedRows
+            .Cast<DataGridViewRow>()
+            .Select(row => row.Tag)
+            .OfType<SuccessfulLogonView>()
+            .FirstOrDefault();
+
+        if (success is null)
+        {
+            CancelSuccessWhois();
+            _successDetails.Clear("Выберите успешное подключение — здесь появятся данные IP и WHOIS.");
+            return;
+        }
+
+        var attempts = _status?.RecentAttempts
+            .Where(a => string.Equals(a.Ip, success.Ip, StringComparison.OrdinalIgnoreCase))
+            .ToList() ?? new List<FailedAttemptView>();
+        var block = _status?.Blocked.FirstOrDefault(b =>
+            string.Equals(b.Ip, success.Ip, StringComparison.OrdinalIgnoreCase));
+        var config = _status?.Config ?? new GuardConfig();
+
+        var address = System.Net.IPAddress.TryParse(success.Ip, out var parsed) ? parsed : null;
+        var blacklisted = address is not null &&
+                          IpMatcher.IsMatch(address, config.PermanentBlocklist, out _);
+        var whitelisted = address is not null &&
+                          IpMatcher.IsMatch(address, config.Whitelist, out _);
+
+        _successDetails.ShowSuccess(
+            success,
+            attempts,
+            block,
+            config.WhitelistSuccessfulLogins,
+            whitelisted,
+            blacklisted);
+        _ = LoadSuccessWhoisAsync(success.Ip, refresh: false);
+    }
+
     private async Task LoadBlockWhoisAsync(string ip, bool refresh)
     {
         if (string.IsNullOrWhiteSpace(ip) || _blocksDetails is null) return;
@@ -67,6 +108,7 @@ public sealed partial class MainForm
                 string.Equals(_blocksDetails.Ip, ip, StringComparison.OrdinalIgnoreCase))
             {
                 _blocksDetails.SetWhois(lookup);
+                UpdateCountryCells(ip, FormatCountry(lookup));
             }
         }
         catch (OperationCanceledException)
@@ -98,6 +140,7 @@ public sealed partial class MainForm
                 string.Equals(_attemptsDetails.Ip, ip, StringComparison.OrdinalIgnoreCase))
             {
                 _attemptsDetails.SetWhois(lookup);
+                UpdateCountryCells(ip, FormatCountry(lookup));
             }
         }
         catch (OperationCanceledException)
@@ -109,6 +152,38 @@ public sealed partial class MainForm
                 string.Equals(_attemptsDetails.Ip, ip, StringComparison.OrdinalIgnoreCase))
             {
                 _attemptsDetails.SetWhoisError(ex.Message);
+            }
+        }
+    }
+
+    private async Task LoadSuccessWhoisAsync(string ip, bool refresh)
+    {
+        if (string.IsNullOrWhiteSpace(ip) || _successDetails is null) return;
+
+        _successWhoisCts?.Cancel();
+        _successWhoisCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _successWhoisCts = cts;
+
+        try
+        {
+            var lookup = await _whoisLookup.LookupAsync(ip, cts.Token, refresh);
+            if (!cts.IsCancellationRequested &&
+                string.Equals(_successDetails.Ip, ip, StringComparison.OrdinalIgnoreCase))
+            {
+                _successDetails.SetWhois(lookup);
+                UpdateCountryCells(ip, FormatCountry(lookup));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (!cts.IsCancellationRequested &&
+                string.Equals(_successDetails.Ip, ip, StringComparison.OrdinalIgnoreCase))
+            {
+                _successDetails.SetWhoisError(ex.Message);
             }
         }
     }
@@ -125,5 +200,12 @@ public sealed partial class MainForm
         _attemptsWhoisCts?.Cancel();
         _attemptsWhoisCts?.Dispose();
         _attemptsWhoisCts = null;
+    }
+
+    private void CancelSuccessWhois()
+    {
+        _successWhoisCts?.Cancel();
+        _successWhoisCts?.Dispose();
+        _successWhoisCts = null;
     }
 }

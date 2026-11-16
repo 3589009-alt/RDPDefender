@@ -180,6 +180,7 @@ public sealed partial class MainForm
 
         _blocksGrid.ResumeLayout();
         _btnUnblock.Enabled = _blocksGrid.SelectedRows.Count > 0;
+        ShowSelectedBlockDetails();
     }
 
     private void BlocksGridOnCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -290,6 +291,9 @@ public sealed partial class MainForm
         _attemptsInfo.Text = attempts.Count == 0
             ? $"RDP-подключений (261): {totalRdp261}"
             : $"RDP-подключений (261): {totalRdp261} · показано: {attempts.Count}";
+
+        CancelAttemptWhois();
+        _attemptsDetails?.Clear("Выберите попытку входа в списке — здесь появятся данные IP и WHOIS.");
     }
 
     private void AttemptsGridOnCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)

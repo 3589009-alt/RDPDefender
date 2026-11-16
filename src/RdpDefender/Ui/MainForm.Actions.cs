@@ -164,6 +164,21 @@ public sealed partial class MainForm
         BringToFront();
     }
 
+    private async void ToggleMode(object? sender, EventArgs e)
+    {
+        if (_busy || _status is null) return;
+
+        var config = _status.Config.Clone();
+        config.DryRun = !_status.DryRun;
+
+        if (await PersistConfigAsync(config))
+        {
+            SetSaveMessage(
+                config.DryRun ? "Режим наблюдения включён" : "Режим блокировки включён",
+                config.DryRun ? Theme.Warn : Theme.Green);
+        }
+    }
+
     private async Task ToggleProtectionAsync()
     {
         if (_status is null)

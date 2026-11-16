@@ -48,6 +48,11 @@ public sealed partial class MainForm : Form
     private DarkGrid _blocksGrid = null!;
     private DarkGrid _attemptsGrid = null!;
     private DarkGrid _journalGrid = null!;
+    private AttackerDetailsPanel _blocksDetails = null!;
+    private AttackerDetailsPanel _attemptsDetails = null!;
+    private readonly WhoisLookup _whoisLookup = new();
+    private CancellationTokenSource? _blocksWhoisCts;
+    private CancellationTokenSource? _attemptsWhoisCts;
     private NumberInput _attemptsLimit = null!;
     private Label _attemptsInfo = null!;
     private AccentButton _btnUnblock = null!;
@@ -321,6 +326,13 @@ public sealed partial class MainForm : Form
         _cardTotal = new StatCard { Caption = "Всего блокировок", Value = "0", Dock = DockStyle.Fill, Margin = new Padding(0, 0, 14, 4) };
         _cardMode = new StatCard { Caption = "Режим", Value = "—", Dock = DockStyle.Fill, Margin = new Padding(0) };
 
+        _cardActive.Cursor = Cursors.Hand;
+        _cardAttempts.Cursor = Cursors.Hand;
+        _cardMode.Cursor = Cursors.Hand;
+        _cardActive.Click += (_, _) => SelectPage(0);
+        _cardAttempts.Click += (_, _) => SelectPage(1);
+        _cardMode.Click += ToggleMode;
+
         stats.Controls.Add(_cardActive, 0, 0);
         stats.Controls.Add(_cardAttempts, 1, 0);
         stats.Controls.Add(_cardTotal, 2, 0);
@@ -377,12 +389,13 @@ public sealed partial class MainForm : Form
             Dock = DockStyle.Fill,
             BackColor = Theme.Bg,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = 3,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 232));
 
         var toolbar = new TableLayoutPanel
         {
@@ -443,13 +456,21 @@ public sealed partial class MainForm : Form
         _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "state", HeaderText = "СОСТОЯНИЕ", FillWeight = 12, SortMode = DataGridViewColumnSortMode.NotSortable });
         _blocksGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "reason", HeaderText = "ПРИЧИНА", FillWeight = 31, SortMode = DataGridViewColumnSortMode.NotSortable });
         _blocksGrid.CellFormatting += BlocksGridOnCellFormatting;
-        _blocksGrid.SelectionChanged += (_, _) => _btnUnblock.Enabled = _blocksGrid.SelectedRows.Count > 0;
+        _blocksGrid.SelectionChanged += (_, _) =>
+        {
+            _btnUnblock.Enabled = _blocksGrid.SelectedRows.Count > 0;
+            ShowSelectedBlockDetails();
+        };
         _blocksGrid.EmptyText = "Активных блокировок нет\r\nПод защитой всё спокойно";
 
         gridHost.Controls.Add(_blocksGrid);
 
+        _blocksDetails = new AttackerDetailsPanel { Dock = DockStyle.Fill };
+        _blocksDetails.RefreshRequested += (_, _) => _ = LoadBlockWhoisAsync(_blocksDetails.Ip, refresh: true);
+
         layout.Controls.Add(toolbar, 0, 0);
         layout.Controls.Add(gridHost, 0, 1);
+        layout.Controls.Add(_blocksDetails, 0, 2);
         page.Controls.Add(layout);
         return page;
     }
@@ -462,12 +483,13 @@ public sealed partial class MainForm : Form
             Dock = DockStyle.Fill,
             BackColor = Theme.Bg,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = 3,
             Margin = new Padding(0),
             Padding = new Padding(0)
         };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 232));
 
         var toolbar = new FlowLayoutPanel
         {
@@ -570,11 +592,17 @@ public sealed partial class MainForm : Form
             HeaderText = "РЕЗУЛЬТАТ", FillWeight = 23, SortMode = DataGridViewColumnSortMode.NotSortable
         });
         _attemptsGrid.CellFormatting += AttemptsGridOnCellFormatting;
+        _attemptsGrid.SelectionChanged += (_, _) => ShowSelectedAttemptDetails();
         _attemptsGrid.EmptyText = "Неудачных попыток входа пока нет";
 
         gridHost.Controls.Add(_attemptsGrid);
+
+        _attemptsDetails = new AttackerDetailsPanel { Dock = DockStyle.Fill };
+        _attemptsDetails.RefreshRequested += (_, _) => _ = LoadAttemptWhoisAsync(_attemptsDetails.Ip, refresh: true);
+
         layout.Controls.Add(toolbar, 0, 0);
         layout.Controls.Add(gridHost, 0, 1);
+        layout.Controls.Add(_attemptsDetails, 0, 2);
         page.Controls.Add(layout);
         return page;
     }

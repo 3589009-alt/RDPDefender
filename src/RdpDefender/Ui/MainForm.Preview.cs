@@ -69,7 +69,7 @@ public sealed partial class MainForm
                 Id = 1,
                 TimeUtc = now.AddHours(-5),
                 Level = "INFO",
-                Message = "RDP Defender 1.3.5 запущен. Каталог данных: C:\\ProgramData\\RDP Defender"
+                Message = "RDP Defender 1.3.6 запущен. Каталог данных: C:\\ProgramData\\RDP Defender"
             },
             new()
             {

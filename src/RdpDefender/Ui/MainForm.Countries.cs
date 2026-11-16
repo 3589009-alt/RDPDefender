@@ -116,6 +116,9 @@ public sealed partial class MainForm
     private static string FormatCountry(AttackerLookup? lookup)
     {
         if (lookup is null) return "—";
+        if (IPAddress.TryParse(lookup.Ip, out var address) && address is not null &&
+            WhoisLookup.IsNonPublic(address))
+            return "LAN";
         if (!string.IsNullOrWhiteSpace(lookup.Country)) return lookup.Country;
         return "—";
     }

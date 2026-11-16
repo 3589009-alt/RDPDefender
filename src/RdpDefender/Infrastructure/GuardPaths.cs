@@ -64,7 +64,7 @@ public sealed class GuardPaths
         get
         {
             var version = Assembly.GetExecutingAssembly().GetName().Version;
-            return version is null ? "1.3.5" : $"{version.Major}.{version.Minor}.{version.Build}";
+            return version is null ? "1.3.6" : $"{version.Major}.{version.Minor}.{version.Build}";
         }
     }
 }

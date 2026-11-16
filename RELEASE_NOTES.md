@@ -1,11 +1,11 @@
-# RDP Defender 1.3.5
+# RDP Defender 1.3.6
 
 Защита RDP от подбора паролей для Windows x64.
 
 ## assets
 
-- `RDP-Defender-Setup-1.3.5.exe` — установщик для GitHub (не подписан);
-- `RDP-Defender-1.3.5-win-x64.zip` — portable-версия;
+- `RDP-Defender-Setup-1.3.6.exe` — установщик для GitHub (не подписан);
+- `RDP-Defender-1.3.6-win-x64.zip` — portable-версия;
 - `SHA256SUMS.txt` — контрольные суммы.
 
 Подписанный веб-установщик с опциональной установкой корневого сертификата:

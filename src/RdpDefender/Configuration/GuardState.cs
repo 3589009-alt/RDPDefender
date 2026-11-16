@@ -22,10 +22,22 @@ public sealed class BlockedIp
     public bool Permanent => ExpiresAtUtc is null;
 }
 
+public sealed class SuccessfulLogon
+{
+    public string Ip { get; set; } = "";
+    public DateTime FirstSuccessUtc { get; set; }
+    public DateTime LastSuccessUtc { get; set; }
+    public int Count { get; set; }
+    public string UserName { get; set; } = "";
+    public string Workstation { get; set; } = "";
+    public string Source { get; set; } = "";
+}
+
 public sealed class GuardState
 {
     public List<BlockedIp> Blocks { get; set; } = new();
     public Dictionary<string, int> OffenseCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<SuccessfulLogon> SuccessfulLogons { get; set; } = new();
     public int TotalBlocks { get; set; }
     public int TotalAttempts { get; set; }
     public int TotalRdp261 { get; set; }
@@ -57,7 +69,9 @@ public sealed class StateStore
 
             state.Blocks ??= new List<BlockedIp>();
             state.OffenseCounts ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            state.SuccessfulLogons ??= new List<SuccessfulLogon>();
             state.Blocks.RemoveAll(b => string.IsNullOrWhiteSpace(b.Ip));
+            state.SuccessfulLogons.RemoveAll(s => string.IsNullOrWhiteSpace(s.Ip));
             return state;
         }
         catch (Exception ex)

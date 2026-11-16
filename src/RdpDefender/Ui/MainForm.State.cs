@@ -115,6 +115,7 @@ public sealed partial class MainForm
         _cardMode.Accent = !status.Enabled ? Theme.TextDim : status.DryRun ? Theme.Warn : Theme.Green;
 
         RefreshBlocks(status.Blocked);
+        RefreshSuccessfulLogons(status.SuccessfulLogons, status.Config, status.Blocked);
         RefreshJournal(status.Events);
         RefreshAttempts(status.RecentAttempts, status.TotalRdp261);
         UpdateDiagnostics(status);
@@ -253,6 +254,59 @@ public sealed partial class MainForm
             try { _journalGrid.FirstDisplayedScrollingRowIndex = _journalGrid.Rows.Count - 1; }
             catch { }
         }
+    }
+
+    private void RefreshSuccessfulLogons(
+        IReadOnlyList<SuccessfulLogonView> successes,
+        GuardConfig config,
+        IReadOnlyList<BlockedIpView> blocks)
+    {
+        var signature = (config.WhitelistSuccessfulLogins ? "1" : "0") + "|" +
+            string.Join("|", successes.Select(s =>
+                $"{s.Ip}:{s.FirstSuccessUtc.Ticks}:{s.LastSuccessUtc.Ticks}:{s.Count}:{s.Source}"));
+
+        if (signature != _successSignature)
+        {
+            _successSignature = signature;
+            _successGrid.SuspendLayout();
+            _successGrid.Rows.Clear();
+
+            foreach (var success in successes)
+            {
+                var address = System.Net.IPAddress.TryParse(success.Ip, out var parsed) ? parsed : null;
+                var blacklisted = address is not null &&
+                                  IpMatcher.IsMatch(address, config.PermanentBlocklist, out _);
+                var whitelisted = address is not null &&
+                                  IpMatcher.IsMatch(address, config.Whitelist, out _);
+                var activeBlock = blocks.Any(b =>
+                    string.Equals(b.Ip, success.Ip, StringComparison.OrdinalIgnoreCase));
+
+                var state = blacklisted ? "Чёрный список"
+                    : activeBlock ? "Заблокирован"
+                    : whitelisted ? "Белый список"
+                    : config.WhitelistSuccessfulLogins ? "Защищён"
+                    : "Может блокироваться";
+
+                var index = _successGrid.Rows.Add(
+                    success.Ip,
+                    success.FirstSuccessUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture),
+                    success.LastSuccessUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture),
+                    success.Count.ToString(CultureInfo.InvariantCulture),
+                    string.IsNullOrWhiteSpace(success.Source) ? "—" : success.Source,
+                    string.IsNullOrWhiteSpace(success.UserName) ? "—" : success.UserName,
+                    string.IsNullOrWhiteSpace(success.Workstation) ? "—" : success.Workstation,
+                    state);
+
+                _successGrid.Rows[index].Tag = success;
+            }
+
+            _successGrid.ResumeLayout();
+            _successGrid.ClearSelection();
+            _successGrid.CurrentCell = null;
+        }
+
+        _successInfo.Text = $"Защита успешных подключений: " +
+            $"{(config.WhitelistSuccessfulLogins ? "включена" : "отключена")} · IP: {successes.Count}";
     }
 
     private void RefreshAttempts(IReadOnlyList<FailedAttemptView> attempts, int totalRdp261)

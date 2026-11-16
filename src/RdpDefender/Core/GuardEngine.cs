@@ -122,8 +122,8 @@ public sealed class GuardEngine : IDisposable
             _started = true;
             _source.Start();
             _rdp261Monitor.Port = _config.RdpPort;
-            if (_config.Rdp261Enabled)
-                _rdp261Monitor.Start();
+            // 1149 нужен для страницы успешных подключений даже при отключённом учёте 261.
+            _rdp261Monitor.Start();
             _gatewayMonitor.Start();
             _sweepTimer.Change(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(15));
             SaveStateLocked();
@@ -219,7 +219,7 @@ public sealed class GuardEngine : IDisposable
 
             _rdp261Monitor.Stop();
             _rdp261Monitor.Port = _config.RdpPort;
-            if (_started && _config.Rdp261Enabled)
+            if (_started)
                 _rdp261Monitor.Start();
 
             var methodChanged = !string.Equals(
@@ -379,6 +379,20 @@ public sealed class GuardEngine : IDisposable
                     .Take(attemptsCount)
                     .Select(attempt => attempt.Clone())
                     .ToList(),
+                SuccessfulLogons = _state.SuccessfulLogons
+                    .OrderByDescending(s => s.LastSuccessUtc)
+                    .Take(500)
+                    .Select(s => new SuccessfulLogonView
+                    {
+                        Ip = s.Ip,
+                        FirstSuccessUtc = s.FirstSuccessUtc,
+                        LastSuccessUtc = s.LastSuccessUtc,
+                        Count = s.Count,
+                        UserName = s.UserName,
+                        Workstation = s.Workstation,
+                        Source = s.Source
+                    })
+                    .ToList(),
                 Events = _logger.Journal.Tail(eventCount).ToList(),
                 Config = _config.Clone(),
                 Version = GuardPaths.Version,
@@ -417,15 +431,13 @@ public sealed class GuardEngine : IDisposable
                     : _state.LastEventUtc;
                 _stateDirty = true;
 
-                if (!_config.Enabled)
+                if (IpMatcher.IsMatch(address, _config.PermanentBlocklist, out var blackMatched))
                 {
-                    attempt.Outcome = "Защита отключена";
-                    return;
-                }
-
-                if (!_config.LogonTypes.Contains(e.LogonType))
-                {
-                    attempt.Outcome = "Тип входа не отслеживается";
+                    attempt.Outcome = string.IsNullOrWhiteSpace(blackMatched)
+                        ? "Чёрный список"
+                        : $"Чёрный список: {blackMatched}";
+                    if (!_blocks.ContainsKey(ip))
+                        CreateBlockLocked(address, 0, BlacklistReason, null, forcePermanent: true);
                     return;
                 }
 
@@ -435,6 +447,24 @@ public sealed class GuardEngine : IDisposable
                         ? "Белый список"
                         : $"Белый список: {matched}";
                     LogWhitelistedLocked(ip, matched ?? "", e);
+                    return;
+                }
+
+                if (IsProtectedSuccessfulLocked(address))
+                {
+                    attempt.Outcome = "Успешное подключение: не блокируется";
+                    return;
+                }
+
+                if (!_config.Enabled)
+                {
+                    attempt.Outcome = "Защита отключена";
+                    return;
+                }
+
+                if (!_config.LogonTypes.Contains(e.LogonType))
+                {
+                    attempt.Outcome = "Тип входа не отслеживается";
                     return;
                 }
 
@@ -665,7 +695,14 @@ public sealed class GuardEngine : IDisposable
         normalized = address.ToString();
 
         if (IpMatcher.IsLoopback(address)) return false;
+        if (IpMatcher.IsMatch(address, _config.PermanentBlocklist, out _))
+        {
+            if (!_blocks.ContainsKey(normalized))
+                CreateBlockLocked(address, 0, BlacklistReason, null, forcePermanent: true);
+            return false;
+        }
         if (IpMatcher.IsMatch(address, _config.Whitelist, out _)) return false;
+        if (IsProtectedSuccessfulLocked(address)) return false;
         if (_blocks.ContainsKey(normalized)) return false;
 
         if (_trustedRdp.TryGetValue(normalized, out var trustedUntil))
@@ -690,11 +727,19 @@ public sealed class GuardEngine : IDisposable
                 var ip = IpMatcher.Normalize(parsed).ToString();
                 if (!e.Failed)
                 {
-                    HandleSuccessfulLoginLocked(ip, "HTTP-шлюз");
+                    HandleSuccessfulLoginLocked(ip, "HTTP-шлюз", e.UserName, e.Resource);
+                    return;
+                }
+
+                if (IpMatcher.IsMatch(parsed, _config.PermanentBlocklist, out _))
+                {
+                    if (!_blocks.ContainsKey(ip))
+                        CreateBlockLocked(parsed, 0, BlacklistReason, null, forcePermanent: true);
                     return;
                 }
 
                 if (IpMatcher.IsMatch(parsed, _config.Whitelist, out _)) return;
+                if (IsProtectedSuccessfulLocked(parsed)) return;
                 if (_blocks.ContainsKey(ip)) return;
                 if (_trustedRdp.TryGetValue(ip, out var trustedUntil) && trustedUntil > DateTime.UtcNow)
                     return;
@@ -768,7 +813,7 @@ public sealed class GuardEngine : IDisposable
         }
     }
 
-    private void HandleSuccessfulLoginLocked(string normalized, string source)
+    private void HandleSuccessfulLoginLocked(string normalized, string source, string userName = "", string workstation = "")
     {
         if (!IPAddress.TryParse(normalized, out var address) || address is null)
             return;
@@ -776,35 +821,80 @@ public sealed class GuardEngine : IDisposable
         address = IpMatcher.Normalize(address);
         normalized = address.ToString();
 
+        if (IpMatcher.IsMatch(address, _config.PermanentBlocklist, out var blackMatched))
+        {
+            if (!_blocks.ContainsKey(normalized))
+                CreateBlockLocked(address, 0, BlacklistReason, null, forcePermanent: true);
+            _logger.Warn(
+                $"Успешный вход с {normalized} проигнорирован: IP в чёрном списке " +
+                $"({blackMatched}).", normalized);
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        var successful = _state.SuccessfulLogons.FirstOrDefault(s =>
+            string.Equals(s.Ip, normalized, StringComparison.OrdinalIgnoreCase));
+        if (successful is null)
+        {
+            successful = new SuccessfulLogon
+            {
+                Ip = normalized,
+                FirstSuccessUtc = now,
+                LastSuccessUtc = now,
+                Count = 1,
+                UserName = userName ?? "",
+                Workstation = workstation ?? "",
+                Source = source
+            };
+            _state.SuccessfulLogons.Add(successful);
+        }
+        else
+        {
+            successful.LastSuccessUtc = now;
+            successful.Count++;
+            successful.Source = source;
+            if (!string.IsNullOrWhiteSpace(userName)) successful.UserName = userName;
+            if (!string.IsNullOrWhiteSpace(workstation)) successful.Workstation = workstation;
+        }
+
+        if (_state.SuccessfulLogons.Count > 1000)
+        {
+            var oldest = _state.SuccessfulLogons
+                .OrderBy(s => s.LastSuccessUtc)
+                .First();
+            _state.SuccessfulLogons.Remove(oldest);
+        }
+
         _tracker.Reset(normalized);
         _rdp261Tracker.Reset(normalized);
         _rdp261Sources.Remove(normalized);
         _state.OffenseCounts.Remove(normalized);
-        _trustedRdp[normalized] = DateTime.UtcNow.AddHours(1);
-
-        if (_blocks.TryGetValue(normalized, out var block))
-        {
-            RemoveBlockLocked(block, $"Успешный вход ({source})");
-            _logger.Info($"IP {normalized}: блокировка снята после успешного входа ({source}).");
-        }
-
-        if (_config.WhitelistSuccessfulLogins &&
-            !IpMatcher.IsMatch(address, _config.Whitelist, out _))
-        {
-            _config.Whitelist.Add(normalized);
-            try
-            {
-                _configStore.Save(_config);
-                _logger.Info($"IP {normalized} добавлен в белый список после успешного входа ({source}).");
-            }
-            catch (Exception ex)
-            {
-                _logger.Warn($"Не удалось сохранить белый список после входа {normalized}: {ex.Message}");
-            }
-        }
-
-        _logger.Info($"Успешный вход с {normalized} ({source}): счётчики попыток сброшены.");
         _stateDirty = true;
+
+        if (_config.WhitelistSuccessfulLogins)
+        {
+            _trustedRdp[normalized] = now.AddHours(1);
+            if (_blocks.TryGetValue(normalized, out var block))
+            {
+                RemoveBlockLocked(block, $"Успешное подключение ({source})");
+                _logger.Info($"IP {normalized}: блокировка снята после успешного подключения ({source}).");
+            }
+        }
+        else
+        {
+            _trustedRdp.Remove(normalized);
+            _logger.Info($"Успешное подключение с {normalized} ({source}); защита успешных IP отключена.");
+        }
+
+        _logger.Info($"Успешное подключение с {normalized} ({source}): добавлено в список успешных.");
+    }
+
+    private bool IsProtectedSuccessfulLocked(IPAddress address)
+    {
+        if (!_config.WhitelistSuccessfulLogins) return false;
+        var ip = IpMatcher.Normalize(address).ToString();
+        return _state.SuccessfulLogons.Any(s =>
+            string.Equals(s.Ip, ip, StringComparison.OrdinalIgnoreCase));
     }
 
     private IReadOnlyList<string> GetActiveRdpRemoteIpsLocked()

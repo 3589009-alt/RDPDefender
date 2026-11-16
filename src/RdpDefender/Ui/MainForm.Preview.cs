@@ -22,6 +22,7 @@ public sealed partial class MainForm
             PermanentBlockAfter = 3,
             Whitelist = new List<string> { "10.10.0.0/16", "192.168.0.10" },
             PermanentBlocklist = new List<string> { "198.51.100.12" },
+            WhitelistSuccessfulLogins = true,
             LogonTypes = new List<int> { 3, 10 }
         };
         config.MergeDefaultLocalNetworks();
@@ -68,7 +69,7 @@ public sealed partial class MainForm
                 Id = 1,
                 TimeUtc = now.AddHours(-5),
                 Level = "INFO",
-                Message = "RDP Defender 1.3.2 запущен. Каталог данных: C:\\ProgramData\\RDP Defender"
+                Message = "RDP Defender 1.3.3 запущен. Каталог данных: C:\\ProgramData\\RDP Defender"
             },
             new()
             {
@@ -162,6 +163,25 @@ public sealed partial class MainForm
             }
         };
 
+        var successes = new List<SuccessfulLogonView>
+        {
+            new()
+            {
+                Ip = "192.168.0.10", FirstSuccessUtc = now.AddDays(-4), LastSuccessUtc = now.AddMinutes(-18),
+                Count = 23, UserName = "operator", Workstation = "IT-ADMIN", Source = "RDP 1149"
+            },
+            new()
+            {
+                Ip = "10.10.5.7", FirstSuccessUtc = now.AddDays(-1), LastSuccessUtc = now.AddHours(-2),
+                Count = 4, UserName = "backup", Workstation = "BR-SRV", Source = "HTTP-шлюз"
+            },
+            new()
+            {
+                Ip = "203.0.113.55", FirstSuccessUtc = now.AddHours(-9), LastSuccessUtc = now.AddMinutes(-47),
+                Count = 2, UserName = "operator", Workstation = "WS-12", Source = "RDP 1149"
+            }
+        };
+
         var status = new GuardStatus
         {
             Enabled = true,
@@ -179,6 +199,7 @@ public sealed partial class MainForm
             TrackedIps = 6,
             Blocked = blocks,
             RecentAttempts = attempts,
+            SuccessfulLogons = successes,
             Events = events,
             Config = config,
             Version = GuardPaths.Version,
@@ -204,16 +225,17 @@ public sealed partial class MainForm
         {
             ("01-blocks", 0),
             ("02-attempts", 1),
-            ("03-journal", 2),
-            ("04-settings", 3),
-            ("05-service", 4)
+            ("03-success", 2),
+            ("04-journal", 3),
+            ("05-settings", 4),
+            ("06-service", 5)
         };
 
         foreach (var (name, index) in pages)
         {
             SelectPage(index);
 
-            if (index == 3)
+            if (index == 4)
                 _settingsScroll.ScrollToTop();
 
             Application.DoEvents();
@@ -222,19 +244,19 @@ public sealed partial class MainForm
 
             CaptureTo(Path.Combine(directory, name + ".png"));
 
-            if (index == 3)
+            if (index == 4)
             {
                 _settingsScroll.ScrollTo(470);
                 Application.DoEvents();
                 Thread.Sleep(120);
                 Application.DoEvents();
-                CaptureTo(Path.Combine(directory, "04b-settings-bottom.png"));
+                CaptureTo(Path.Combine(directory, "05b-settings-bottom.png"));
 
                 _settingsScroll.ScrollTo(940);
                 Application.DoEvents();
                 Thread.Sleep(120);
                 Application.DoEvents();
-                CaptureTo(Path.Combine(directory, "04c-settings-advanced.png"));
+                CaptureTo(Path.Combine(directory, "05c-settings-advanced.png"));
             }
         }
 

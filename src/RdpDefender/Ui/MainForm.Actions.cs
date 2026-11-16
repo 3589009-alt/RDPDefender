@@ -184,7 +184,7 @@ public sealed partial class MainForm
         if (_status is null)
         {
             ShowMainWindow();
-            SelectPage(3);
+            SelectPage(4);
             return;
         }
 

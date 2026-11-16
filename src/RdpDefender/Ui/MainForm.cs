@@ -41,12 +41,14 @@ public sealed partial class MainForm : Form
     private Panel[] _pages = Array.Empty<Panel>();
     private Panel _pageBlocks = null!;
     private Panel _pageAttempts = null!;
+    private Panel _pageSuccess = null!;
     private Panel _pageJournal = null!;
     private Panel _pageSettings = null!;
     private Panel _pageService = null!;
 
     private DarkGrid _blocksGrid = null!;
     private DarkGrid _attemptsGrid = null!;
+    private DarkGrid _successGrid = null!;
     private DarkGrid _journalGrid = null!;
     private AttackerDetailsPanel _blocksDetails = null!;
     private AttackerDetailsPanel _attemptsDetails = null!;
@@ -55,6 +57,8 @@ public sealed partial class MainForm : Form
     private CancellationTokenSource? _attemptsWhoisCts;
     private NumberInput _attemptsLimit = null!;
     private Label _attemptsInfo = null!;
+    private Label _successInfo = null!;
+    private string _successSignature = "";
     private AccentButton _btnUnblock = null!;
 
     private DarkScrollPanel _settingsScroll = null!;
@@ -350,6 +354,7 @@ public sealed partial class MainForm : Form
 
         _nav.Add(new NavButton { Text = "Защита", Active = true });
         _nav.Add(new NavButton { Text = "Попытки" });
+        _nav.Add(new NavButton { Text = "Успешные" });
         _nav.Add(new NavButton { Text = "Журнал" });
         _nav.Add(new NavButton { Text = "Настройки" });
         _nav.Add(new NavButton { Text = "Служба" });
@@ -364,10 +369,11 @@ public sealed partial class MainForm : Form
 
         _pageBlocks = BuildBlocksPage();
         _pageAttempts = BuildAttemptsPage();
+        _pageSuccess = BuildSuccessPage();
         _pageJournal = BuildJournalPage();
         _pageSettings = BuildSettingsPage();
         _pageService = BuildServicePage();
-        _pages = new[] { _pageBlocks, _pageAttempts, _pageJournal, _pageSettings, _pageService };
+        _pages = new[] { _pageBlocks, _pageAttempts, _pageSuccess, _pageJournal, _pageSettings, _pageService };
         foreach (var page in _pages)
         {
             page.Visible = false;
@@ -605,6 +611,146 @@ public sealed partial class MainForm : Form
         layout.Controls.Add(_attemptsDetails, 0, 2);
         page.Controls.Add(layout);
         return page;
+    }
+
+    private Panel BuildSuccessPage()
+    {
+        var page = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Bg, Visible = false };
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Theme.Bg,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var toolbar = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Theme.Bg,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        var left = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Theme.Bg,
+            WrapContents = false,
+            Margin = new Padding(0),
+            Padding = new Padding(0, 5, 0, 0)
+        };
+
+        var refresh = new AccentButton
+        {
+            Text = "Обновить",
+            Kind = AccentKind.Secondary,
+            Width = 104,
+            Height = 34,
+            Margin = new Padding(0, 0, 16, 0)
+        };
+        refresh.Click += async (_, _) => await PollAsync();
+
+        _successInfo = new Label
+        {
+            Text = "Успешные RDP-подключения",
+            AutoSize = true,
+            ForeColor = Theme.TextDim,
+            Font = Theme.Font(8.5f),
+            Margin = new Padding(0, 10, 0, 0)
+        };
+
+        left.Controls.Add(refresh);
+        left.Controls.Add(_successInfo);
+
+        var settings = new AccentButton
+        {
+            Text = "Настройки",
+            Kind = AccentKind.Ghost,
+            Width = 130,
+            Height = 34,
+            Margin = new Padding(0)
+        };
+        settings.Click += (_, _) => SelectPage(4);
+
+        toolbar.Controls.Add(left, 0, 0);
+        toolbar.Controls.Add(settings, 1, 0);
+
+        var gridHost = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Theme.Bg,
+            Padding = new Padding(0, 10, 0, 0)
+        };
+
+        _successGrid = new DarkGrid { Dock = DockStyle.Fill };
+        AddSuccessColumn("ip", "IP-АДРЕС", 18);
+        AddSuccessColumn("first", "ПЕРВЫЙ ВХОД", 17);
+        AddSuccessColumn("last", "ПОСЛЕДНИЙ ВХОД", 17);
+        AddSuccessColumn("count", "ВХОДОВ", 8);
+        AddSuccessColumn("source", "ИСТОЧНИК", 12);
+        AddSuccessColumn("user", "ПОЛЬЗОВАТЕЛЬ", 14);
+        AddSuccessColumn("station", "РАБОЧАЯ СТАНЦИЯ", 14);
+        AddSuccessColumn("state", "ЗАЩИТА", 20);
+        _successGrid.CellFormatting += SuccessGridOnCellFormatting;
+        _successGrid.EmptyText = "Успешных RDP-подключений пока нет";
+
+        gridHost.Controls.Add(_successGrid);
+        layout.Controls.Add(toolbar, 0, 0);
+        layout.Controls.Add(gridHost, 0, 1);
+        page.Controls.Add(layout);
+        return page;
+    }
+
+    private void AddSuccessColumn(string name, string header, int weight)
+    {
+        _successGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = name,
+            HeaderText = header,
+            FillWeight = weight,
+            SortMode = DataGridViewColumnSortMode.NotSortable
+        });
+    }
+
+    private void SuccessGridOnCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+        if (_successGrid.Rows[e.RowIndex].Tag is not SuccessfulLogonView) return;
+        var style = e.CellStyle;
+        if (style is null) return;
+
+        switch (e.ColumnIndex)
+        {
+            case 0:
+                style.ForeColor = Theme.Green;
+                style.Font = _cellBold;
+                break;
+            case 3:
+                style.Font = _cellBold;
+                break;
+            case 7:
+                style.Font = _cellBold;
+                var state = _successGrid.Rows[e.RowIndex].Cells[7].Value?.ToString() ?? "";
+                style.ForeColor = state switch
+                {
+                    "Защищён" or "Белый список" => Theme.Green,
+                    "Чёрный список" or "Заблокирован" => Theme.Danger,
+                    _ => Theme.Warn
+                };
+                break;
+            default:
+                style.ForeColor = Theme.TextMuted;
+                break;
+        }
     }
 
     private Panel BuildJournalPage()
@@ -954,8 +1100,8 @@ public sealed partial class MainForm : Form
         _cfgRdp261Window = new NumberInput { Minimum = 1, Maximum = 1440, Value = 10 };
         _cfgWhitelistSuccess = new ToggleSwitch
         {
-            Text = "Успешные входы — в белый список",
-            Description = "После успешного RDP-входа добавлять IP клиента в белый список"
+            Text = "Не блокировать успешные подключения",
+            Description = "IP успешных RDP-входов не блокируются и показываются на вкладке «Успешные»"
         };
         _cfgRecentAttempts.ValueChanged += (_, _) =>
         {

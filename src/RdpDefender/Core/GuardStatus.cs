@@ -40,6 +40,17 @@ public sealed class FailedAttemptView
     };
 }
 
+public sealed class SuccessfulLogonView
+{
+    public string Ip { get; init; } = "";
+    public DateTime FirstSuccessUtc { get; init; }
+    public DateTime LastSuccessUtc { get; init; }
+    public int Count { get; init; }
+    public string UserName { get; init; } = "";
+    public string Workstation { get; init; } = "";
+    public string Source { get; init; } = "";
+}
+
 public sealed class GuardStatus
 {
     public bool Enabled { get; init; }
@@ -64,6 +75,7 @@ public sealed class GuardStatus
 
     public List<BlockedIpView> Blocked { get; init; } = new();
     public List<FailedAttemptView> RecentAttempts { get; init; } = new();
+    public List<SuccessfulLogonView> SuccessfulLogons { get; init; } = new();
     public List<JournalEntry> Events { get; init; } = new();
     public GuardConfig Config { get; init; } = new();
 

@@ -31,8 +31,8 @@ public sealed class GuardConfig
     public int Rdp261Threshold { get; set; } = 50;
     public int Rdp261WindowMinutes { get; set; } = 10;
 
-    /// <summary>После успешного RDP-входа добавлять IP клиента в белый список.</summary>
-    public bool WhitelistSuccessfulLogins { get; set; }
+    /// <summary>Не блокировать IP, с которых были успешные RDP-подключения.</summary>
+    public bool WhitelistSuccessfulLogins { get; set; } = true;
 
     /// <summary>Сколько последних неудачных попыток показывать в разделе «Попытки» (20–100).</summary>
     public int RecentAttemptsCount { get; set; } = 50;

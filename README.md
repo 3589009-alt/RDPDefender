@@ -325,7 +325,7 @@ pwsh -File .\build.ps1
 - находит .NET SDK 8 (в `%USERPROFILE%\.dotnet8`, `C:\Program Files\dotnet` или в `PATH`);
 - при необходимости генерирует иконку;
 - собирает проект в Release;
-- запускает самопроверку (35 проверокка);
+- запускает самопроверку (38 проверок);
 - публикует `dist\portable` (self-contained exe + компоненты WinDivert) и
   `dist\framework-dependent`;
 - собирает zip-архив.

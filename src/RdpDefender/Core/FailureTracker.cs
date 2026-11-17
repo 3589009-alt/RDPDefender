@@ -38,6 +38,8 @@ public sealed class FailureTracker
 
     public void Reset(string ip) => _entries.Remove(ip);
 
+    public void Clear() => _entries.Clear();
+
     public void Prune(DateTime nowUtc, TimeSpan window)
     {
         foreach (var entry in _entries.Values)

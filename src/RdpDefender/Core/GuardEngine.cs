@@ -341,6 +341,32 @@ public sealed class GuardEngine : IDisposable
         }
     }
 
+    public void ClearHistory(string reason = "Очистка списков")
+    {
+        lock (_sync)
+        {
+            UnblockAllLocked(reason);
+            _recentAttempts.Clear();
+            _state.SuccessfulLogons.Clear();
+            _state.OffenseCounts.Clear();
+            _state.TotalAttempts = 0;
+            _state.TotalBlocks = 0;
+            _state.TotalRdp261 = 0;
+            _state.MonitoringSinceUtc = DateTime.UtcNow;
+            _state.LastEventUtc = null;
+            _tracker.Clear();
+            _rdp261Tracker.Clear();
+            _rdp261Times.Clear();
+            _rdp261Sources.Clear();
+            _trustedRdp.Clear();
+            _whitelistLog.Clear();
+            _logger.Journal.Clear();
+            _stateDirty = true;
+            SaveStateLocked();
+            _logger.Info("Рабочие списки очищены вручную.");
+        }
+    }
+
     public GuardStatus GetStatus(int eventCount = 200, int attemptsCount = 50)
     {
         lock (_sync)
@@ -381,7 +407,6 @@ public sealed class GuardEngine : IDisposable
                     .ToList(),
                 SuccessfulLogons = _state.SuccessfulLogons
                     .OrderByDescending(s => s.LastSuccessUtc)
-                    .Take(500)
                     .Select(s => new SuccessfulLogonView
                     {
                         Ip = s.Ip,
@@ -456,6 +481,12 @@ public sealed class GuardEngine : IDisposable
                     return;
                 }
 
+                if (_blocks.ContainsKey(ip))
+                {
+                    attempt.Outcome = "Уже заблокирован";
+                    return;
+                }
+
                 if (!_config.Enabled)
                 {
                     attempt.Outcome = "Защита отключена";
@@ -465,12 +496,6 @@ public sealed class GuardEngine : IDisposable
                 if (!_config.LogonTypes.Contains(e.LogonType))
                 {
                     attempt.Outcome = "Тип входа не отслеживается";
-                    return;
-                }
-
-                if (_blocks.ContainsKey(ip))
-                {
-                    attempt.Outcome = "Уже заблокирован";
                     return;
                 }
 
@@ -855,14 +880,6 @@ public sealed class GuardEngine : IDisposable
             successful.Source = source;
             if (!string.IsNullOrWhiteSpace(userName)) successful.UserName = userName;
             if (!string.IsNullOrWhiteSpace(workstation)) successful.Workstation = workstation;
-        }
-
-        if (_state.SuccessfulLogons.Count > 1000)
-        {
-            var oldest = _state.SuccessfulLogons
-                .OrderBy(s => s.LastSuccessUtc)
-                .First();
-            _state.SuccessfulLogons.Remove(oldest);
         }
 
         _tracker.Reset(normalized);

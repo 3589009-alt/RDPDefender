@@ -177,6 +177,10 @@ public sealed class ControlServer : IDisposable
                 case "ping":
                     return ControlResponse.Success(new { pong = true, version = GuardPaths.Version });
 
+                case "clearhistory":
+                    _engine.ClearHistory(request.Reason ?? "Очистка списков");
+                    return ControlResponse.Success(_engine.GetStatus(50));
+
                 case "status":
                     return ControlResponse.Success(
                         _engine.GetStatus(request.Count ?? 200, request.AttemptsCount ?? 50));

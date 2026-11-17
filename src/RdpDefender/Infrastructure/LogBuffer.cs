@@ -56,4 +56,11 @@ public sealed class LogBuffer
     }
 
     public long LastId => _nextId;
+
+    public void Clear()
+    {
+        while (_entries.TryDequeue(out _))
+        {
+        }
+    }
 }

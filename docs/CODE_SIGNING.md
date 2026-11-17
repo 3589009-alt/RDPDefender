@@ -63,7 +63,7 @@ certutil -addstore -f Root .\kmadmin-root.cer
 
 ```powershell
 Get-AuthenticodeSignature .\RdpDefender.exe | Format-List Status,SignerCertificate
-Get-AuthenticodeSignature .\RDP-Defender-Setup-1.3.6.exe | Format-List Status,SignerCertificate
+Get-AuthenticodeSignature .\RDP-Defender-Setup-1.3.7.exe | Format-List Status,SignerCertificate
 ```
 
 Ожидается `Status = Valid`, подписант `CN=KMV Admin, O=KMV Admin, C=RU`.

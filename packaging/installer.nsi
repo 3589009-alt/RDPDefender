@@ -10,8 +10,8 @@ XPStyle on
 !include "x64.nsh"
 
 !define PRODUCT_NAME "RDP Defender"
-!define PRODUCT_VERSION "1.3.6"
-!define PRODUCT_VERSION4 "1.3.6.0"
+!define PRODUCT_VERSION "1.3.7"
+!define PRODUCT_VERSION4 "1.3.7.0"
 !define PRODUCT_PUBLISHER "RDP Defender"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\RDPDefender"
 !define SERVICE_NAME "RDPDefender"
